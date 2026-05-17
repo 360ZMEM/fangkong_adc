@@ -1,0 +1,8 @@
+.DS_Store
+.dbg/
+data/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/

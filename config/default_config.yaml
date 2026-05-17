@@ -1,0 +1,46 @@
+network:
+  host: "192.168.1.198"
+  port: 1600
+  connect_timeout_sec: 3.0
+  recv_timeout_sec: 1.0
+  reconnect_interval_sec: 2.0
+
+device:
+  sample_rate_hz: 2000
+  active_channels: [0, 1, 2]
+  total_channels: 16
+  adc_bits: 24
+  voltage_range: "+/-10V"
+  configure_voltage_range: false
+  read_bytes_per_request: 1404
+
+runtime:
+  auto_start: false
+  hide_window_on_auto_start: false
+  ui_refresh_hz: 30
+  transport_mode: "poll"
+  scope_total_window_ms: 200
+  scope_div_ms: 20
+
+queue:
+  raw_queue_max_chunks: 512
+  raw_queue_drop_policy: "drop_oldest"
+  parser_batch_chunks: 16
+  warning_threshold_ratio: 0.8
+
+dsp:
+  window_size_samples: 4000
+  hop_size_samples: 200
+  fft_window_sec: 1.0
+  fft_overlap: 0.5
+  lockin_frequency_hz: 50.0
+  lockin_window_sec: 1.0
+  lockin_reference: "software"
+  packet_loss_fill_mode: "zero_order_hold"
+
+storage:
+  enabled: true
+  root_dir: "data"
+  raw_npz_enabled: true
+  feature_csv_enabled: true
+  flush_interval_sec: 5.0
