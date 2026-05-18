@@ -34,6 +34,8 @@ class MainWindow(QMainWindow):
         self.waveform_plot = WaveformPlot(
             total_window_ms=controller.config.runtime.scope_total_window_ms,
             div_ms=controller.config.runtime.scope_div_ms,
+            unit_mode=controller.config.runtime.waveform_y_unit,
+            sensor_sensitivity_mv_per_ut=controller.config.device.sensor_sensitivity_mv_per_ut,
         )
         self.spectrum_plot = SpectrumPlot()
         plots_layout.addWidget(self.waveform_plot.widget)
@@ -56,6 +58,12 @@ class MainWindow(QMainWindow):
     def refresh(self) -> None:
         snapshot = self.controller.get_latest_snapshot()
         self.status_panel.update_snapshot(snapshot)
+        self.waveform_plot.set_display_config(
+            total_window_ms=self.controller.config.runtime.scope_total_window_ms,
+            div_ms=self.controller.config.runtime.scope_div_ms,
+            unit_mode=self.controller.config.runtime.waveform_y_unit,
+            sensor_sensitivity_mv_per_ut=self.controller.config.device.sensor_sensitivity_mv_per_ut,
+        )
         self.waveform_plot.update(snapshot.waveform, snapshot.channels, snapshot.sample_rate_hz)
         self.spectrum_plot.update(snapshot.fft.freqs, snapshot.fft.spectra)
 

@@ -49,6 +49,7 @@ class DeviceConfig:
     voltage_range: str = "+/-10V"
     configure_voltage_range: bool = False
     read_bytes_per_request: int = 1404
+    sensor_sensitivity_mv_per_ut: float = 20.0
 
 
 @dataclass
@@ -59,6 +60,7 @@ class RuntimeConfig:
     transport_mode: str = "poll"
     scope_total_window_ms: int = 200
     scope_div_ms: int = 20
+    waveform_y_unit: str = "voltage"
 
 
 @dataclass
@@ -123,6 +125,8 @@ class AppConfig:
             raise ValueError("示波器时基必须为正数")
         if self.runtime.scope_total_window_ms < self.runtime.scope_div_ms:
             raise ValueError("scope_total_window_ms 不能小于 scope_div_ms")
+        if self.runtime.waveform_y_unit not in {"voltage", "magnetic_field"}:
+            raise ValueError("waveform_y_unit 必须是 voltage 或 magnetic_field")
         if self.queue.raw_queue_drop_policy != "drop_oldest":
             raise ValueError("首版仅支持 drop_oldest 队列策略")
         frame_bytes = max(1, len(self.device.active_channels)) * 4
@@ -130,6 +134,8 @@ class AppConfig:
             raise ValueError("read_bytes_per_request 必须在 1..1440")
         if self.device.read_bytes_per_request < frame_bytes:
             raise ValueError("read_bytes_per_request 不能小于激活通道的单帧字节数")
+        if self.device.sensor_sensitivity_mv_per_ut <= 0:
+            raise ValueError("sensor_sensitivity_mv_per_ut 必须为正数")
         if self.dsp.window_size_samples < 2:
             raise ValueError("window_size_samples 必须至少为 2")
         if self.dsp.hop_size_samples < 1:

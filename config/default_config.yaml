@@ -13,6 +13,7 @@ device:
   voltage_range: "+/-10V"
   configure_voltage_range: false
   read_bytes_per_request: 1404
+  sensor_sensitivity_mv_per_ut: 20.0
 
 runtime:
   auto_start: false
@@ -21,6 +22,7 @@ runtime:
   transport_mode: "poll"
   scope_total_window_ms: 200
   scope_div_ms: 20
+  waveform_y_unit: "voltage"
 
 queue:
   raw_queue_max_chunks: 512

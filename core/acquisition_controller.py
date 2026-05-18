@@ -165,6 +165,24 @@ class AcquisitionController:
         self._auto_thread = threading.Thread(target=self._auto_loop, name="AutoMode", daemon=True)
         self._auto_thread.start()
 
+    def set_waveform_unit(self, unit_mode: str) -> None:
+        if unit_mode not in {"voltage", "magnetic_field"}:
+            self.set_state(self.state, "波形单位无效")
+            return
+        self.config.runtime.waveform_y_unit = unit_mode
+        self.set_state(self.state, f"波形单位: {'V' if unit_mode == 'voltage' else 'μT'}")
+        self.save_user_config()
+
+    def set_scope_timebase(self, total_window_ms: int, div_ms: int) -> None:
+        if total_window_ms <= 0 or div_ms <= 0 or total_window_ms < div_ms:
+            self.set_state(self.state, "时基参数无效")
+            return
+        self.config.runtime.scope_total_window_ms = int(total_window_ms)
+        self.config.runtime.scope_div_ms = int(div_ms)
+        self.ring_buffer.resize(self._ring_buffer_capacity())
+        self.set_state(self.state, f"时基: {total_window_ms} ms / {div_ms} ms每格")
+        self.save_user_config()
+
     def shutdown(self) -> None:
         self.stop_acquisition()
 

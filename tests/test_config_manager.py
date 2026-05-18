@@ -23,6 +23,11 @@ def test_load_merged_config(tmp_path: Path):
 
 def test_save_config_roundtrip(tmp_path: Path):
     cfg = AppConfig()
+    cfg.runtime.waveform_y_unit = "magnetic_field"
+    cfg.device.sensor_sensitivity_mv_per_ut = 20.0
     path = tmp_path / "user.yaml"
     save_config(cfg, path)
     assert path.exists()
+    loaded = load_merged_config(path)
+    assert loaded.runtime.waveform_y_unit == "magnetic_field"
+    assert loaded.device.sensor_sensitivity_mv_per_ut == 20.0

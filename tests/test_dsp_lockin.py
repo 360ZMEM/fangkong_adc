@@ -30,3 +30,12 @@ def test_ring_buffer_keeps_latest_samples():
     latest = rb.latest()
     assert latest.shape == (5, 1)
     assert latest[:, 0].tolist() == [5, 6, 7, 8, 9]
+
+
+def test_ring_buffer_resize_keeps_latest_samples():
+    rb = RingBuffer(5, 1)
+    rb.append(np.arange(5, dtype=float).reshape(-1, 1))
+    rb.resize(3)
+    latest = rb.latest()
+    assert latest.shape == (3, 1)
+    assert latest[:, 0].tolist() == [2, 3, 4]
