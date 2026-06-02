@@ -14,6 +14,7 @@ from protocol.frames import build_read_registers, build_read_stream, build_write
 from protocol.stream_parser import SlidingByteBuffer
 from .models import LatestSnapshot
 from .pipeline import LatestDataStore, PipelineHandles, PipelineWorker
+from .recorder import Recorder
 from .ring_buffer import RingBuffer
 from .storage import DataStorage
 
@@ -51,6 +52,7 @@ class AcquisitionController:
         self._last_rate_sample_time = time.monotonic()
         self._last_rate_bytes = 0
         self._user_config_path = "config/user_config.yaml"
+        self.recorder = Recorder(output_dir="raw_data")
 
     def set_state(self, state: ConnectionState, message: str = "") -> None:
         with self._state_lock:
@@ -183,6 +185,31 @@ class AcquisitionController:
         self.set_state(self.state, f"时基: {total_window_ms} ms / {div_ms} ms每格")
         self.save_user_config()
 
+    def set_lockin_frequency(self, freq_hz: float) -> None:
+        if freq_hz <= 0:
+            self.set_state(self.state, "锁相频率必须为正数")
+            return
+        self.config.dsp.lockin_frequency_hz = float(freq_hz)
+        self.set_state(self.state, f"锁相频率: {freq_hz:.1f} Hz")
+        self.save_user_config()
+
+    def start_recording(self) -> None:
+        self.recorder.start(
+            channels=list(self.config.device.active_channels),
+            sample_rate_hz=self.config.device.sample_rate_hz,
+        )
+        self.set_state(self.state, "录制中...")
+
+    def stop_recording(self) -> str:
+        path = self.recorder.stop_and_save(
+            sensitivity_mv_per_ut=list(self.config.device.sensor_sensitivity_mv_per_ut),
+        )
+        if path:
+            self.set_state(self.state, f"录制完成！已保存: {path}")
+        else:
+            self.set_state(self.state, "录制停止（无数据）")
+        return path
+
     def shutdown(self) -> None:
         self.stop_acquisition()
 
@@ -223,7 +250,7 @@ class AcquisitionController:
     def _start_pipeline_if_needed(self) -> None:
         if self.pipeline_worker and self.pipeline_worker.is_alive():
             return
-        handles = PipelineHandles(self.ring_buffer, self.latest_store, self.storage)
+        handles = PipelineHandles(self.ring_buffer, self.latest_store, self.storage, self.recorder)
         self.pipeline_worker = PipelineWorker(self.config, self.raw_queue, self.stop_event, handles)
         self.pipeline_worker.start()
 

@@ -16,17 +16,24 @@ WAVEFORM_UNIT_LABELS = {
 def convert_waveform_for_display(
     waveform: np.ndarray,
     unit_mode: str,
-    sensor_sensitivity_mv_per_ut: float,
+    sensor_sensitivity_mv_per_ut: list[float],
 ) -> np.ndarray:
     view = np.asarray(waveform, dtype=np.float64)
     if unit_mode == "voltage":
         return view
     if unit_mode != "magnetic_field":
         raise ValueError(f"未知波形单位模式: {unit_mode}")
-    if sensor_sensitivity_mv_per_ut <= 0:
-        raise ValueError("sensor_sensitivity_mv_per_ut 必须为正数")
-    sensitivity_v_per_ut = sensor_sensitivity_mv_per_ut / 1000.0
-    return view / sensitivity_v_per_ut
+    if not sensor_sensitivity_mv_per_ut:
+        raise ValueError("sensor_sensitivity_mv_per_ut 不能为空")
+    if any(v <= 0 for v in sensor_sensitivity_mv_per_ut):
+        raise ValueError("sensor_sensitivity_mv_per_ut 每个值必须为正数")
+    n_ch = view.shape[1] if view.ndim == 2 else 1
+    sens = np.array(
+        [sensor_sensitivity_mv_per_ut[i % len(sensor_sensitivity_mv_per_ut)] for i in range(n_ch)],
+        dtype=np.float64,
+    )
+    sens_v_per_ut = sens / 1000.0
+    return view / sens_v_per_ut
 
 
 def build_time_axis_ms(point_count: int, sample_rate_hz: int) -> np.ndarray:
@@ -49,7 +56,7 @@ class WaveformPlot:
         total_window_ms: int = 200,
         div_ms: int = 20,
         unit_mode: str = "voltage",
-        sensor_sensitivity_mv_per_ut: float = 20.0,
+        sensor_sensitivity_mv_per_ut: list[float] | None = None,
         parent=None,
     ) -> None:
         if pg is None:
@@ -57,11 +64,13 @@ class WaveformPlot:
         self.widget = pg.PlotWidget(parent=parent)
         self.widget.setLabel("bottom", "Time", units="ms")
         self.widget.addLegend()
-        self.curves: dict[int, object] = {}
+        self.curves: dict[int | str, object] = {}
         self.total_window_ms = float(total_window_ms)
         self.div_ms = float(div_ms)
         self.unit_mode = unit_mode
-        self.sensor_sensitivity_mv_per_ut = float(sensor_sensitivity_mv_per_ut)
+        self.sensor_sensitivity_mv_per_ut: list[float] = (
+            sensor_sensitivity_mv_per_ut if sensor_sensitivity_mv_per_ut else [20.02, 19.98, 19.96]
+        )
         self.channel_colors = {
             0: "#ff4d4f",
             1: "#52c41a",
@@ -78,7 +87,7 @@ class WaveformPlot:
             total_window_ms=total_window_ms,
             div_ms=div_ms,
             unit_mode=unit_mode,
-            sensor_sensitivity_mv_per_ut=sensor_sensitivity_mv_per_ut,
+            sensor_sensitivity_mv_per_ut=self.sensor_sensitivity_mv_per_ut,
         )
 
     def set_display_config(
@@ -87,12 +96,12 @@ class WaveformPlot:
         total_window_ms: int,
         div_ms: int,
         unit_mode: str,
-        sensor_sensitivity_mv_per_ut: float,
+        sensor_sensitivity_mv_per_ut: list[float],
     ) -> None:
         self.total_window_ms = float(total_window_ms)
         self.div_ms = float(div_ms)
         self.unit_mode = unit_mode
-        self.sensor_sensitivity_mv_per_ut = float(sensor_sensitivity_mv_per_ut)
+        self.sensor_sensitivity_mv_per_ut = list(sensor_sensitivity_mv_per_ut)
         left_text, left_units = waveform_axis_label(self.unit_mode)
         self.widget.setLabel("left", left_text, units=left_units)
         self.widget.getAxis("bottom").setTickSpacing(
@@ -119,6 +128,16 @@ class WaveformPlot:
                 color = self.channel_colors.get(ch, "#ffffff")
                 self.curves[ch] = self.widget.plot(name=f"CH{ch}", pen=pg.mkPen(color=color, width=2))
             self.curves[ch].setData(x, y[:, idx])
+        # 标量曲线：三通道平方和的根
+        if y.shape[1] >= 2:
+            magnitude = np.sqrt(np.sum(y ** 2, axis=1))
+            mag_key = "mag"
+            if mag_key not in self.curves:
+                self.curves[mag_key] = self.widget.plot(
+                    name="|B|", pen=pg.mkPen(color="#ffffff", width=2, style=pg.QtCore.Qt.DashLine)
+                )
+            self.curves[mag_key].setData(x, magnitude)
+        self.widget.enableAutoRange(axis="y", enable=True)
 
 
 class SpectrumPlot:

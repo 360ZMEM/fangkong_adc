@@ -49,7 +49,14 @@ class DeviceConfig:
     voltage_range: str = "+/-10V"
     configure_voltage_range: bool = False
     read_bytes_per_request: int = 1404
-    sensor_sensitivity_mv_per_ut: float = 20.0
+    sensor_sensitivity_mv_per_ut: list[float] = field(
+        default_factory=lambda: [20.02, 19.98, 19.96]
+    )
+
+    def __post_init__(self) -> None:
+        # 兼容旧配置中 sensor_sensitivity_mv_per_ut 为单个 float 的情况
+        if isinstance(self.sensor_sensitivity_mv_per_ut, (int, float)):
+            self.sensor_sensitivity_mv_per_ut = [float(self.sensor_sensitivity_mv_per_ut)] * 3
 
 
 @dataclass
@@ -134,8 +141,10 @@ class AppConfig:
             raise ValueError("read_bytes_per_request 必须在 1..1440")
         if self.device.read_bytes_per_request < frame_bytes:
             raise ValueError("read_bytes_per_request 不能小于激活通道的单帧字节数")
-        if self.device.sensor_sensitivity_mv_per_ut <= 0:
-            raise ValueError("sensor_sensitivity_mv_per_ut 必须为正数")
+        if not self.device.sensor_sensitivity_mv_per_ut:
+            raise ValueError("sensor_sensitivity_mv_per_ut 不能为空列表")
+        if any(v <= 0 for v in self.device.sensor_sensitivity_mv_per_ut):
+            raise ValueError("sensor_sensitivity_mv_per_ut 中每个值必须为正数")
         if self.dsp.window_size_samples < 2:
             raise ValueError("window_size_samples 必须至少为 2")
         if self.dsp.hop_size_samples < 1:

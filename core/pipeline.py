@@ -16,6 +16,7 @@ from .dsp import compute_fft
 from .lockin import compute_lockin
 from .models import FftResult, LatestSnapshot, LockinResult, ProcessingStats
 from .ring_buffer import RingBuffer
+from .recorder import Recorder
 from .storage import DataStorage
 
 
@@ -38,6 +39,7 @@ class PipelineHandles:
     ring_buffer: RingBuffer
     latest_store: LatestDataStore
     storage: DataStorage
+    recorder: Recorder | None = None
 
 
 class PipelineWorker(threading.Thread):
@@ -125,6 +127,8 @@ class PipelineWorker(threading.Thread):
                 self.stats.channel_mismatch_count += decoded.stats.channel_mismatch_count
                 if decoded.voltages.size > 0:
                     self.handles.ring_buffer.append(decoded.voltages)
+                    if self.handles.recorder is not None:
+                        self.handles.recorder.feed(decoded.voltages)
                     decoded_count = int(decoded.voltages.shape[0])
                     self._pending_since_last_dsp += decoded_count
                     self._last_sample_vector = decoded.voltages[-1].copy()

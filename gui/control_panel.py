@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QComboBox, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QComboBox, QDoubleSpinBox, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget,
+)
 
 TIMEBASE_PRESETS = [
     (100, 10),
@@ -45,10 +47,21 @@ class ControlPanel(QWidget):
                 current_timebase,
             )
             self.timebase_combo.setCurrentIndex(self.timebase_combo.count() - 1)
+        self.lockin_freq_label = QLabel("锁相频率 (Hz)")
+        self.lockin_freq_spin = QDoubleSpinBox()
+        self.lockin_freq_spin.setRange(1.0, 10000.0)
+        self.lockin_freq_spin.setDecimals(1)
+        self.lockin_freq_spin.setSingleStep(1.0)
+        self.lockin_freq_spin.setValue(controller.config.dsp.lockin_frequency_hz)
         layout.addWidget(self.unit_label)
         layout.addWidget(self.unit_combo)
         layout.addWidget(self.timebase_label)
         layout.addWidget(self.timebase_combo)
+        layout.addWidget(self.lockin_freq_label)
+        layout.addWidget(self.lockin_freq_spin)
+        self.record_btn = QPushButton("信号录制")
+        self._recording = False
+        layout.addWidget(self.record_btn)
         for btn in [
             self.connect_btn,
             self.config_btn,
@@ -64,6 +77,8 @@ class ControlPanel(QWidget):
         self.save_btn.clicked.connect(self.controller.save_user_config)
         self.unit_combo.currentIndexChanged.connect(self._on_waveform_unit_changed)
         self.timebase_combo.currentIndexChanged.connect(self._on_timebase_changed)
+        self.lockin_freq_spin.valueChanged.connect(self._on_lockin_freq_changed)
+        self.record_btn.clicked.connect(self._on_record_clicked)
 
     def _on_waveform_unit_changed(self) -> None:
         unit_mode = self.unit_combo.currentData()
@@ -74,3 +89,18 @@ class ControlPanel(QWidget):
         timebase = self.timebase_combo.currentData()
         if isinstance(timebase, tuple) and len(timebase) == 2:
             self.controller.set_scope_timebase(int(timebase[0]), int(timebase[1]))
+
+    def _on_lockin_freq_changed(self, value: float) -> None:
+        self.controller.set_lockin_frequency(value)
+
+    def _on_record_clicked(self) -> None:
+        if not self._recording:
+            self.controller.start_recording()
+            self._recording = True
+            self.record_btn.setText("停止录制")
+        else:
+            path = self.controller.stop_recording()
+            self._recording = False
+            self.record_btn.setText("信号录制")
+            if path:
+                QMessageBox.information(self, "录制完成", f"录制完成！\n已保存: {path}")
