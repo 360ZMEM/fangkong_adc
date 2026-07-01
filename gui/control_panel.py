@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QComboBox, QDoubleSpinBox, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget,
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 TIMEBASE_PRESETS = [
@@ -53,12 +61,19 @@ class ControlPanel(QWidget):
         self.lockin_freq_spin.setDecimals(1)
         self.lockin_freq_spin.setSingleStep(1.0)
         self.lockin_freq_spin.setValue(controller.config.dsp.lockin_frequency_hz)
+        self.calibration_label = QLabel(self._calibration_label_text())
+        self.load_calibration_btn = QPushButton("加载九参数标定")
+        self.calibration_enable_check = QCheckBox("启用标定")
+        self.calibration_enable_check.setChecked(controller.config.calibration.enabled)
         layout.addWidget(self.unit_label)
         layout.addWidget(self.unit_combo)
         layout.addWidget(self.timebase_label)
         layout.addWidget(self.timebase_combo)
         layout.addWidget(self.lockin_freq_label)
         layout.addWidget(self.lockin_freq_spin)
+        layout.addWidget(self.calibration_label)
+        layout.addWidget(self.load_calibration_btn)
+        layout.addWidget(self.calibration_enable_check)
         self.record_btn = QPushButton("信号录制")
         self._recording = False
         layout.addWidget(self.record_btn)
@@ -78,6 +93,8 @@ class ControlPanel(QWidget):
         self.unit_combo.currentIndexChanged.connect(self._on_waveform_unit_changed)
         self.timebase_combo.currentIndexChanged.connect(self._on_timebase_changed)
         self.lockin_freq_spin.valueChanged.connect(self._on_lockin_freq_changed)
+        self.load_calibration_btn.clicked.connect(self._on_load_calibration_clicked)
+        self.calibration_enable_check.toggled.connect(self._on_calibration_toggled)
         self.record_btn.clicked.connect(self._on_record_clicked)
 
     def _on_waveform_unit_changed(self) -> None:
@@ -93,6 +110,28 @@ class ControlPanel(QWidget):
     def _on_lockin_freq_changed(self, value: float) -> None:
         self.controller.set_lockin_frequency(value)
 
+    def _on_load_calibration_clicked(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "选择九参数标定文件",
+            "calibration_profiles",
+            "Calibration JSON (*.json);;All Files (*)",
+        )
+        if not path:
+            return
+        self.controller.load_calibration_profile(path)
+        self.calibration_enable_check.blockSignals(True)
+        self.calibration_enable_check.setChecked(self.controller.config.calibration.enabled)
+        self.calibration_enable_check.blockSignals(False)
+        self.calibration_label.setText(self._calibration_label_text())
+
+    def _on_calibration_toggled(self, checked: bool) -> None:
+        self.controller.set_calibration_enabled(checked)
+        self.calibration_enable_check.blockSignals(True)
+        self.calibration_enable_check.setChecked(self.controller.config.calibration.enabled)
+        self.calibration_enable_check.blockSignals(False)
+        self.calibration_label.setText(self._calibration_label_text())
+
     def _on_record_clicked(self) -> None:
         if not self._recording:
             self.controller.start_recording()
@@ -104,3 +143,10 @@ class ControlPanel(QWidget):
             self.record_btn.setText("信号录制")
             if path:
                 QMessageBox.information(self, "录制完成", f"录制完成！\n已保存: {path}")
+
+    def _calibration_label_text(self) -> str:
+        profile = self.controller.calibration_profile
+        if profile is None:
+            return "标定状态：未加载"
+        state = "启用" if self.controller.config.calibration.enabled else "未启用"
+        return f"标定状态：{state} - {profile.name}"

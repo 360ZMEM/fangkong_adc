@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from core.calibration import MagnetometerCalibration, apply_calibration, voltage_to_magnetic_field
+
 try:  # pragma: no cover
     import pyqtgraph as pg
 except ImportError:  # pragma: no cover
@@ -17,23 +19,16 @@ def convert_waveform_for_display(
     waveform: np.ndarray,
     unit_mode: str,
     sensor_sensitivity_mv_per_ut: list[float],
+    calibration: MagnetometerCalibration | None = None,
+    calibration_enabled: bool = False,
 ) -> np.ndarray:
     view = np.asarray(waveform, dtype=np.float64)
     if unit_mode == "voltage":
         return view
     if unit_mode != "magnetic_field":
         raise ValueError(f"未知波形单位模式: {unit_mode}")
-    if not sensor_sensitivity_mv_per_ut:
-        raise ValueError("sensor_sensitivity_mv_per_ut 不能为空")
-    if any(v <= 0 for v in sensor_sensitivity_mv_per_ut):
-        raise ValueError("sensor_sensitivity_mv_per_ut 每个值必须为正数")
-    n_ch = view.shape[1] if view.ndim == 2 else 1
-    sens = np.array(
-        [sensor_sensitivity_mv_per_ut[i % len(sensor_sensitivity_mv_per_ut)] for i in range(n_ch)],
-        dtype=np.float64,
-    )
-    sens_v_per_ut = sens / 1000.0
-    return view / sens_v_per_ut
+    magnetic = voltage_to_magnetic_field(view, sensor_sensitivity_mv_per_ut)
+    return apply_calibration(magnetic, calibration, calibration_enabled)
 
 
 def build_time_axis_ms(point_count: int, sample_rate_hz: int) -> np.ndarray:
@@ -57,6 +52,8 @@ class WaveformPlot:
         div_ms: int = 20,
         unit_mode: str = "voltage",
         sensor_sensitivity_mv_per_ut: list[float] | None = None,
+        calibration: MagnetometerCalibration | None = None,
+        calibration_enabled: bool = False,
         parent=None,
     ) -> None:
         if pg is None:
@@ -71,6 +68,8 @@ class WaveformPlot:
         self.sensor_sensitivity_mv_per_ut: list[float] = (
             sensor_sensitivity_mv_per_ut if sensor_sensitivity_mv_per_ut else [20.02, 19.98, 19.96]
         )
+        self.calibration = calibration
+        self.calibration_enabled = calibration_enabled
         self.channel_colors = {
             0: "#ff4d4f",
             1: "#52c41a",
@@ -88,6 +87,8 @@ class WaveformPlot:
             div_ms=div_ms,
             unit_mode=unit_mode,
             sensor_sensitivity_mv_per_ut=self.sensor_sensitivity_mv_per_ut,
+            calibration=calibration,
+            calibration_enabled=calibration_enabled,
         )
 
     def set_display_config(
@@ -97,11 +98,15 @@ class WaveformPlot:
         div_ms: int,
         unit_mode: str,
         sensor_sensitivity_mv_per_ut: list[float],
+        calibration: MagnetometerCalibration | None = None,
+        calibration_enabled: bool = False,
     ) -> None:
         self.total_window_ms = float(total_window_ms)
         self.div_ms = float(div_ms)
         self.unit_mode = unit_mode
         self.sensor_sensitivity_mv_per_ut = list(sensor_sensitivity_mv_per_ut)
+        self.calibration = calibration
+        self.calibration_enabled = calibration_enabled
         left_text, left_units = waveform_axis_label(self.unit_mode)
         self.widget.setLabel("left", left_text, units=left_units)
         self.widget.getAxis("bottom").setTickSpacing(
@@ -121,6 +126,8 @@ class WaveformPlot:
             view,
             self.unit_mode,
             self.sensor_sensitivity_mv_per_ut,
+            self.calibration,
+            self.calibration_enabled,
         )
         self.widget.setXRange(-self.total_window_ms, 0.0, padding=0.0)
         for idx, ch in enumerate(channels):

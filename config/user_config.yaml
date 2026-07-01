@@ -37,7 +37,7 @@ dsp:
   hop_size_samples: 200
   fft_window_sec: 1.0
   fft_overlap: 0.5
-  lockin_frequency_hz: 49.0
+  lockin_frequency_hz: 50.0
   lockin_window_sec: 1.0
   lockin_reference: software
   packet_loss_fill_mode: zero_order_hold
@@ -47,3 +47,6 @@ storage:
   raw_npz_enabled: true
   feature_csv_enabled: true
   flush_interval_sec: 5.0
+calibration:
+  enabled: false
+  profile_path: ''

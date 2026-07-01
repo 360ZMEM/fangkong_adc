@@ -1,5 +1,6 @@
 import numpy as np
 
+from core.calibration import MagnetometerCalibration
 from gui.plot_widgets import build_time_axis_ms, convert_waveform_for_display, waveform_axis_label
 
 
@@ -32,6 +33,20 @@ def test_convert_waveform_for_display_requires_positive_sensitivity():
         assert "正数" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("expected ValueError")
+
+
+def test_convert_waveform_for_display_applies_calibration_when_enabled():
+    samples = np.array([[0.04, 0.06, 0.08]], dtype=np.float64)
+    profile = MagnetometerCalibration(
+        name="unit_test",
+        created_at="2026-01-01T00:00:00",
+        bias_ut=[1.0, 1.0, 1.0],
+        matrix=np.eye(3).tolist(),
+        channels=[0, 1, 2],
+        sensitivity_mv_per_ut=[20.0, 20.0, 20.0],
+    )
+    converted = convert_waveform_for_display(samples, "magnetic_field", [20.0, 20.0, 20.0], profile, True)
+    assert np.allclose(converted[0], [1.0, 2.0, 3.0])
 
 
 def test_build_time_axis_ms_uses_fixed_sample_rate():

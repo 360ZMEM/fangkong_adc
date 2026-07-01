@@ -36,6 +36,8 @@ class MainWindow(QMainWindow):
             div_ms=controller.config.runtime.scope_div_ms,
             unit_mode=controller.config.runtime.waveform_y_unit,
             sensor_sensitivity_mv_per_ut=controller.config.device.sensor_sensitivity_mv_per_ut,
+            calibration=controller.calibration_profile,
+            calibration_enabled=controller.config.calibration.enabled,
         )
         self.spectrum_plot = SpectrumPlot()
         plots_layout.addWidget(self.waveform_plot.widget)
@@ -63,6 +65,8 @@ class MainWindow(QMainWindow):
             div_ms=self.controller.config.runtime.scope_div_ms,
             unit_mode=self.controller.config.runtime.waveform_y_unit,
             sensor_sensitivity_mv_per_ut=self.controller.config.device.sensor_sensitivity_mv_per_ut,
+            calibration=self.controller.calibration_profile,
+            calibration_enabled=self.controller.config.calibration.enabled,
         )
         self.waveform_plot.update(snapshot.waveform, snapshot.channels, snapshot.sample_rate_hz)
         self.spectrum_plot.update(snapshot.fft.freqs, snapshot.fft.spectra)

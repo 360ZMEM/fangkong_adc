@@ -100,6 +100,12 @@ class StorageConfig:
 
 
 @dataclass
+class CalibrationConfig:
+    enabled: bool = False
+    profile_path: str = ""
+
+
+@dataclass
 class AppConfig:
     network: NetworkConfig = field(default_factory=NetworkConfig)
     device: DeviceConfig = field(default_factory=DeviceConfig)
@@ -107,6 +113,7 @@ class AppConfig:
     queue: QueueConfig = field(default_factory=QueueConfig)
     dsp: DspConfig = field(default_factory=DspConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
+    calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
 
     def validate(self) -> None:
         if self.device.sample_rate_hz not in SUPPORTED_SAMPLE_RATES:
@@ -155,6 +162,8 @@ class AppConfig:
             raise ValueError("首版仅支持 software Lock-in 参考")
         if self.dsp.packet_loss_fill_mode not in {"zero_order_hold", "zero_padding"}:
             raise ValueError("packet_loss_fill_mode 必须是 zero_order_hold 或 zero_padding")
+        if not isinstance(self.calibration.profile_path, str):
+            raise ValueError("calibration.profile_path 必须是字符串")
 
 
 def _section(data: dict[str, Any], key: str) -> dict[str, Any]:
@@ -174,6 +183,7 @@ def app_config_from_dict(data: dict[str, Any]) -> AppConfig:
         queue=QueueConfig(**_section(data, "queue")),
         dsp=DspConfig(**_section(data, "dsp")),
         storage=StorageConfig(**_section(data, "storage")),
+        calibration=CalibrationConfig(**_section(data, "calibration")),
     )
     cfg.validate()
     return cfg

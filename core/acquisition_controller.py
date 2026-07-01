@@ -6,6 +6,7 @@ import time
 
 from config.config_manager import save_config
 from config.settings import AppConfig
+from .calibration import MagnetometerCalibration, calibration_summary
 from network.network_worker import NetworkWorker, NetworkWorkerStats
 from network.reconnect_state import ConnectionState
 from network.tcp_client import TcpClient, TcpClientError, TcpEndpoint
@@ -53,6 +54,13 @@ class AcquisitionController:
         self._last_rate_bytes = 0
         self._user_config_path = "config/user_config.yaml"
         self.recorder = Recorder(output_dir="raw_data")
+        self.calibration_profile: MagnetometerCalibration | None = None
+        if self.config.calibration.profile_path:
+            try:
+                self.calibration_profile = MagnetometerCalibration.load(self.config.calibration.profile_path)
+            except Exception as exc:
+                self.config.calibration.enabled = False
+                self.storage.append_event(f"标定文件加载失败: {exc}")
 
     def set_state(self, state: ConnectionState, message: str = "") -> None:
         with self._state_lock:
@@ -203,12 +211,35 @@ class AcquisitionController:
     def stop_recording(self) -> str:
         path = self.recorder.stop_and_save(
             sensitivity_mv_per_ut=list(self.config.device.sensor_sensitivity_mv_per_ut),
+            calibration=self.calibration_profile,
+            calibration_enabled=self.config.calibration.enabled,
         )
         if path:
             self.set_state(self.state, f"录制完成！已保存: {path}")
         else:
             self.set_state(self.state, "录制停止（无数据）")
         return path
+
+    def load_calibration_profile(self, path: str) -> None:
+        try:
+            profile = MagnetometerCalibration.load(path)
+            self.calibration_profile = profile
+            self.config.calibration.profile_path = path
+            self.config.calibration.enabled = True
+            self.set_state(self.state, calibration_summary(profile, True))
+            self.save_user_config()
+        except Exception as exc:
+            self.config.calibration.enabled = False
+            self.set_state(self.state, f"标定加载失败: {exc}")
+
+    def set_calibration_enabled(self, enabled: bool) -> None:
+        if enabled and self.calibration_profile is None:
+            self.config.calibration.enabled = False
+            self.set_state(self.state, "请先加载标定文件")
+            return
+        self.config.calibration.enabled = bool(enabled)
+        self.set_state(self.state, calibration_summary(self.calibration_profile, self.config.calibration.enabled))
+        self.save_user_config()
 
     def shutdown(self) -> None:
         self.stop_acquisition()

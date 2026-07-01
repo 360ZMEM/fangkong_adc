@@ -8,6 +8,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .calibration import MagnetometerCalibration, calibration_to_npz_metadata
+
 
 class Recorder:
     """线程安全的录制器。状态机: IDLE -> RECORDING -> IDLE。"""
@@ -44,7 +46,12 @@ class Recorder:
             if voltage_samples.size > 0:
                 self._chunks.append(voltage_samples.copy())
 
-    def stop_and_save(self, sensitivity_mv_per_ut: list[float]) -> str:
+    def stop_and_save(
+        self,
+        sensitivity_mv_per_ut: list[float],
+        calibration: MagnetometerCalibration | None = None,
+        calibration_enabled: bool = False,
+    ) -> str:
         """停止录制并保存 npz。返回保存路径。"""
         with self._lock:
             if not self._recording:
@@ -88,5 +95,6 @@ class Recorder:
             channels=np.array(channels, dtype=np.int16),
             start_timestamp=np.float64(start_time),
             sensitivity_mv_per_ut=np.array(sensitivity_mv_per_ut, dtype=np.float64),
+            **calibration_to_npz_metadata(calibration, calibration_enabled),
         )
         return str(filepath)

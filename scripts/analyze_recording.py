@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 SENSITIVITY_MV_PER_UT = [20.02, 19.98, 19.96]
 
 # 锁相放大目标频率 (Hz)
-LOCKIN_FREQUENCY_HZ = 50.0
+LOCKIN_FREQUENCY_HZ = 45
 
 # 统一采样率 (Hz)，用于显示和计算
 DISPLAY_SAMPLE_RATE_HZ = 2000
@@ -48,6 +48,12 @@ OUTPUT_SUBDIR = "figures"
 # 通道标签
 CHANNEL_LABELS = ["CH1 (X)", "CH2 (Y)", "CH3 (Z)"]
 
+# 是否在离线分析中应用九参数标定
+APPLY_CALIBRATION = False
+
+# 标定文件路径。为空时，如果 npz 内记录了标定参数且 APPLY_CALIBRATION=True，会优先使用 npz 内参数。
+CALIBRATION_PROFILE_PATH = ""
+
 # ============================================================
 # 以下为脚本逻辑，一般无需修改
 # ============================================================
@@ -58,6 +64,11 @@ sys.path.insert(0, str(_project_root))
 
 from core.dsp import compute_fft  # noqa: E402
 from core.lockin import compute_lockin  # noqa: E402
+from core.calibration import (  # noqa: E402
+    MagnetometerCalibration,
+    apply_calibration,
+    voltage_to_magnetic_field,
+)
 
 
 def resolve_npz_path(arg: str) -> Path:
@@ -83,24 +94,36 @@ def load_recording(path: Path) -> dict:
     channels = data["channels"].tolist()
     start_timestamp = float(data["start_timestamp"])
     sensitivity = data["sensitivity_mv_per_ut"].tolist() if "sensitivity_mv_per_ut" in data else SENSITIVITY_MV_PER_UT
+    npz_calibration = None
+    if "calibration_bias_ut" in data and "calibration_matrix" in data:
+        bias = data["calibration_bias_ut"]
+        matrix = data["calibration_matrix"]
+        if bias.shape == (3,) and matrix.shape == (3, 3):
+            name = str(data["calibration_name"]) if "calibration_name" in data else "npz_embedded"
+            npz_calibration = MagnetometerCalibration(
+                name=name,
+                created_at="from_npz",
+                bias_ut=bias.astype(float).tolist(),
+                matrix=matrix.astype(float).tolist(),
+                channels=channels,
+                sensitivity_mv_per_ut=sensitivity,
+            )
     return {
         "voltage": voltage,
         "sample_rate_hz": sample_rate_hz,
         "channels": channels,
         "start_timestamp": start_timestamp,
         "sensitivity_mv_per_ut": sensitivity,
+        "calibration": npz_calibration,
     }
 
 
-def voltage_to_magnetic_field(voltage: np.ndarray, sensitivity_mv_per_ut: list[float]) -> np.ndarray:
-    """电压 (V) 转磁感应强度 (μT)，按通道独立灵敏度。"""
-    n_ch = voltage.shape[1]
-    sens = np.array(
-        [sensitivity_mv_per_ut[i % len(sensitivity_mv_per_ut)] for i in range(n_ch)],
-        dtype=np.float64,
-    )
-    sens_v_per_ut = sens / 1000.0
-    return voltage / sens_v_per_ut
+def load_analysis_calibration(recording: dict) -> MagnetometerCalibration | None:
+    if not APPLY_CALIBRATION:
+        return None
+    if CALIBRATION_PROFILE_PATH:
+        return MagnetometerCalibration.load(CALIBRATION_PROFILE_PATH)
+    return recording.get("calibration")
 
 
 def compute_sliding_lockin(
@@ -138,6 +161,40 @@ def compute_sliding_lockin(
     }
 
 
+def compute_sliding_lockin_1d(
+    signal_1d: np.ndarray,
+    sample_rate_hz: int,
+    frequency_hz: float,
+    window_sec: float,
+    hop_sec: float,
+) -> dict:
+    """对单通道（如 |B|）做滑动窗口锁相放大。"""
+    n_samples = signal_1d.shape[0]
+    window_samples = int(round(window_sec * sample_rate_hz))
+    hop_samples = max(1, int(round(hop_sec * sample_rate_hz)))
+
+    times = []
+    amplitudes = []
+    phases = []
+
+    pos = 0
+    while pos + window_samples <= n_samples:
+        segment = signal_1d[pos: pos + window_samples].reshape(-1, 1)
+        results = compute_lockin(segment, sample_rate_hz, [0], frequency_hz)
+        t = (pos + window_samples / 2) / sample_rate_hz
+        times.append(t)
+        if results:
+            amplitudes.append(results[0].amplitude)
+            phases.append(results[0].phase_rad)
+        pos += hop_samples
+
+    return {
+        "times": np.array(times),
+        "amplitudes": np.array(amplitudes),
+        "phases": np.array(phases),
+    }
+
+
 def plot_raw_signal(time_s: np.ndarray, magnetic: np.ndarray, channels: list[int], output_dir: Path):
     """绘制原始信号时域波形。"""
     fig, axes = plt.subplots(len(channels) + 1, 1, figsize=(12, 3 * (len(channels) + 1)), sharex=True)
@@ -162,9 +219,9 @@ def plot_raw_signal(time_s: np.ndarray, magnetic: np.ndarray, channels: list[int
     return fig
 
 
-def plot_fft_spectrum(voltage: np.ndarray, sample_rate_hz: int, channels: list[int], output_dir: Path):
+def plot_fft_spectrum(magnetic: np.ndarray, sample_rate_hz: int, channels: list[int], output_dir: Path):
     """绘制 FFT 频谱。"""
-    fft_result = compute_fft(voltage, sample_rate_hz, channels)
+    fft_result = compute_fft(magnetic, sample_rate_hz, channels)
     fig, axes = plt.subplots(len(channels), 1, figsize=(12, 3 * len(channels)), sharex=True)
     if len(channels) == 1:
         axes = [axes]
@@ -174,7 +231,7 @@ def plot_fft_spectrum(voltage: np.ndarray, sample_rate_hz: int, channels: list[i
         label = CHANNEL_LABELS[idx] if idx < len(CHANNEL_LABELS) else f"CH{ch}"
         if ch in fft_result.spectra:
             axes[idx].semilogy(fft_result.freqs, fft_result.spectra[ch], linewidth=0.5)
-        axes[idx].set_ylabel(f"{label} Amplitude", fontname="Times New Roman")
+        axes[idx].set_ylabel(f"{label} Amplitude (μT)", fontname="Times New Roman")
         axes[idx].grid(True, alpha=0.3)
         axes[idx].axvline(LOCKIN_FREQUENCY_HZ, color="red", linestyle="--", alpha=0.5, label=f"{LOCKIN_FREQUENCY_HZ} Hz")
         axes[idx].legend(prop={"family": "Times New Roman"})
@@ -202,7 +259,7 @@ def plot_lockin_results(lockin_data: dict, channels: list[int], output_dir: Path
         label = CHANNEL_LABELS[idx] if idx < len(CHANNEL_LABELS) else f"CH{ch}"
         if ch in amplitudes:
             axes_amp[idx].plot(times, amplitudes[ch], linewidth=0.8)
-        axes_amp[idx].set_ylabel(f"{label} Amplitude (V)", fontname="Times New Roman")
+        axes_amp[idx].set_ylabel(f"{label} Amplitude (μT)", fontname="Times New Roman")
         axes_amp[idx].grid(True, alpha=0.3)
 
     axes_amp[-1].set_xlabel("Time (s)", fontname="Times New Roman")
@@ -229,6 +286,56 @@ def plot_lockin_results(lockin_data: dict, channels: list[int], output_dir: Path
     fig_phase.savefig(output_dir / "lockin_phase.pdf")
 
     return fig_amp, fig_phase
+
+
+def plot_magnitude_fft(magnitude: np.ndarray, sample_rate_hz: int, output_dir: Path):
+    """绘制 |B| 模值的 FFT 频谱。"""
+    n = magnitude.shape[0]
+    window = np.hanning(n)
+    coherent_gain = max(window.mean(), 1e-12)
+    y = magnitude - np.mean(magnitude)
+    spec = np.abs(np.fft.rfft(y * window)) * 2.0 / (n * coherent_gain)
+    freqs = np.fft.rfftfreq(n, d=1.0 / sample_rate_hz)
+
+    fig, ax = plt.subplots(1, 1, figsize=(12, 4))
+    fig.suptitle("|B| FFT Spectrum", fontsize=14, fontname="Times New Roman")
+    ax.semilogy(freqs, spec, linewidth=0.5, color="black")
+    ax.axvline(LOCKIN_FREQUENCY_HZ, color="red", linestyle="--", alpha=0.5, label=f"{LOCKIN_FREQUENCY_HZ} Hz")
+    ax.set_xlabel("Frequency (Hz)", fontname="Times New Roman")
+    ax.set_ylabel("|B| Amplitude (μT)", fontname="Times New Roman")
+    ax.grid(True, alpha=0.3)
+    ax.legend(prop={"family": "Times New Roman"})
+    plt.tight_layout()
+    fig.savefig(output_dir / "magnitude_fft.png", dpi=200)
+    fig.savefig(output_dir / "magnitude_fft.pdf")
+    return fig
+
+
+def plot_magnitude_lockin(magnitude: np.ndarray, sample_rate_hz: int, output_dir: Path):
+    """绘制 |B| 模值的锁相放大结果（幅值 + 相位 vs 时间）。"""
+    lockin_data = compute_sliding_lockin_1d(
+        magnitude, sample_rate_hz, LOCKIN_FREQUENCY_HZ, LOCKIN_WINDOW_SEC, LOCKIN_HOP_SEC,
+    )
+    times = lockin_data["times"]
+    amplitudes = lockin_data["amplitudes"]
+    phases = lockin_data["phases"]
+
+    fig, axes = plt.subplots(2, 1, figsize=(12, 6), sharex=True)
+    fig.suptitle(f"|B| Lock-in @ {LOCKIN_FREQUENCY_HZ} Hz", fontsize=14, fontname="Times New Roman")
+
+    axes[0].plot(times, amplitudes, linewidth=0.8, color="black")
+    axes[0].set_ylabel("|B| Amplitude (μT)", fontname="Times New Roman")
+    axes[0].grid(True, alpha=0.3)
+
+    axes[1].plot(times, np.rad2deg(phases), linewidth=0.8, color="black")
+    axes[1].set_ylabel("|B| Phase (°)", fontname="Times New Roman")
+    axes[1].set_xlabel("Time (s)", fontname="Times New Roman")
+    axes[1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    fig.savefig(output_dir / "magnitude_lockin.png", dpi=200)
+    fig.savefig(output_dir / "magnitude_lockin.pdf")
+    return fig
 
 
 def main():
@@ -261,6 +368,15 @@ def main():
 
     # 电压 → 磁感应强度
     magnetic = voltage_to_magnetic_field(voltage, sensitivity)
+    calibration = load_analysis_calibration(recording)
+    if calibration is not None:
+        magnetic = apply_calibration(magnetic, calibration, enabled=True)
+        print(f"  已应用九参数标定: {calibration.name}")
+    elif APPLY_CALIBRATION:
+        print("  已请求应用标定，但未找到可用标定文件/npz内嵌参数")
+
+    # 模值 |B|
+    magnitude = np.sqrt(np.sum(magnetic ** 2, axis=1))
 
     # 时间轴
     n_samples = voltage.shape[0]
@@ -275,18 +391,24 @@ def main():
     print("绘制原始信号...")
     plot_raw_signal(time_s, magnetic, channels, output_dir)
 
-    print("绘制 FFT 频谱...")
-    plot_fft_spectrum(voltage, sample_rate_hz, channels, output_dir)
+    print("绘制各通道 FFT 频谱...")
+    plot_fft_spectrum(magnetic, sample_rate_hz, channels, output_dir)
 
-    print("计算锁相放大...")
+    print("绘制 |B| FFT 频谱...")
+    plot_magnitude_fft(magnitude, sample_rate_hz, output_dir)
+
+    print("计算各通道锁相放大...")
     lockin_data = compute_sliding_lockin(
-        voltage, sample_rate_hz, channels,
+        magnetic, sample_rate_hz, channels,
         LOCKIN_FREQUENCY_HZ, LOCKIN_WINDOW_SEC, LOCKIN_HOP_SEC,
     )
-    print("绘制锁相结果...")
+    print("绘制各通道锁相结果...")
     plot_lockin_results(lockin_data, channels, output_dir)
 
-    print(f"完成！共生成 6 个图片文件（PNG + PDF）在 {output_dir}")
+    print("计算 |B| 锁相放大...")
+    plot_magnitude_lockin(magnitude, sample_rate_hz, output_dir)
+
+    print(f"完成！共生成 10 个图片文件（PNG + PDF）在 {output_dir}")
     plt.show()
 
 

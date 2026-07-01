@@ -46,3 +46,7 @@ storage:
   raw_npz_enabled: true
   feature_csv_enabled: true
   flush_interval_sec: 5.0
+
+calibration:
+  enabled: false
+  profile_path: ""
