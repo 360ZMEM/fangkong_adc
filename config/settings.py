@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .runtime_paths import DEFAULT_DEVICE_HOST, DEFAULT_DEVICE_PORT
+
 SUPPORTED_SAMPLE_RATES = {
     1,
     5,
@@ -33,8 +35,8 @@ SUPPORTED_SAMPLE_RATES = {
 
 @dataclass
 class NetworkConfig:
-    host: str = "192.168.1.198"
-    port: int = 1600
+    host: str = DEFAULT_DEVICE_HOST
+    port: int = DEFAULT_DEVICE_PORT
     connect_timeout_sec: float = 3.0
     recv_timeout_sec: float = 1.0
     reconnect_interval_sec: float = 2.0

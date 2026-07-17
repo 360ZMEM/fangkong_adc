@@ -48,5 +48,5 @@ storage:
   flush_interval_sec: 5.0
 
 calibration:
-  enabled: false
-  profile_path: ""
+  enabled: true
+  profile_path: "calibration_profiles/20260705T144937_magnetometer_9param.json"

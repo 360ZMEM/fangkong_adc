@@ -51,7 +51,7 @@ B_cal = M · (B_raw − b)
 ### A.0 前置检查（一次性）
 
 ```bash
-cd /Users/bytedance/coding/fangkong_adc
+cd /Users/auv_user/coding/fangkong_adc
 python -c "import scipy, numpy, matplotlib; print('deps ok')"
 ```
 如果打印 `deps ok`，可以开始。缺依赖用 `pip install scipy numpy matplotlib`。
@@ -83,7 +83,7 @@ python scripts/simulate_calibration_recording.py
 ```
 
 > **想改仿真参数？** 打开
-> [simulate_calibration_recording.py](file:///Users/bytedance/coding/fangkong_adc/scripts/simulate_calibration_recording.py)
+> [simulate_calibration_recording.py](file:///Users/auv_user/coding/fangkong_adc/scripts/simulate_calibration_recording.py)
 > 文件顶端的"用户可修改变量"区，可调项包括：
 > - `DURATION_SEC`：采集时长，改成 60 会得到 120000 样本；
 > - `TRUE_FIELD_MAGNITUDE_UT`：模拟当地磁场模值（默认 50 μT）；
@@ -155,7 +155,7 @@ python scripts/analyze_recording.py raw_data/1780000000_123456.npz
 ```
 
 打开
-[analyze_recording.py](file:///Users/bytedance/coding/fangkong_adc/scripts/analyze_recording.py)
+[analyze_recording.py](file:///Users/auv_user/coding/fangkong_adc/scripts/analyze_recording.py)
 顶端把 `APPLY_CALIBRATION = True`、
 `CALIBRATION_PROFILE_PATH = "calibration_profiles/20260701T115318_magnetometer_9param.json"`。
 再跑一遍，会看到 `|B|` 时域曲线由抖动的椭球带变成近乎水平的一条线。
@@ -222,7 +222,7 @@ python scripts/calibrate_magnetometer.py raw_data/1723456789_012345.npz
 - **健康度必须落在 `健康 ✓` 或至少 `合格 ~` 档**；如果打印 `不足 ✗`（退出码 2），
   说明本次采集数据不够，重录！
 - 生成
-  [calibration_profiles/*.json](file:///Users/bytedance/coding/fangkong_adc/calibration_profiles)；
+  [calibration_profiles/*.json](file:///Users/auv_user/coding/fangkong_adc/calibration_profiles)；
 - `figures/` 下的点云前后对比图肉眼可见"椭球 → 球"。
 
 如果拟合后残差仍然很大或健康度不足，往往是**姿态覆盖不足**（八字没画完整）
@@ -270,7 +270,7 @@ python scripts/calibrate_magnetometer.py raw_data/1723456789_012345.npz
 
 ### 健康度是怎么算出来的？
 
-（源码：[compute_calibration_health()](file:///Users/bytedance/coding/fangkong_adc/core/calibration.py#L163-L253)）
+（源码：[compute_calibration_health()](file:///Users/auv_user/coding/fangkong_adc/core/calibration.py#L163-L253)）
 
 **第 1 步 · 采集四个原始量**
 
@@ -356,7 +356,7 @@ $$\text{score} = 0.20\,s_{\text{样本}} + 0.35\,s_{\text{覆盖}} + 0.30\,s_{\t
 
 **Q3. `.npz` 里都有什么？**  
 参见
-[core/recorder.py](file:///Users/bytedance/coding/fangkong_adc/core/recorder.py#L91-L99) 
+[core/recorder.py](file:///Users/auv_user/coding/fangkong_adc/core/recorder.py#L91-L99) 
 中 `np.savez_compressed` 的字段清单。仿真脚本的 npz 字段与之逐字段一致。
 
 **Q4. 拟合脚本可以不弹图吗？**  
@@ -375,9 +375,9 @@ $$\text{score} = 0.20\,s_{\text{样本}} + 0.35\,s_{\text{覆盖}} + 0.30\,s_{\t
 
 ## 相关文件索引
 
-- 仿真脚本：[scripts/simulate_calibration_recording.py](file:///Users/bytedance/coding/fangkong_adc/scripts/simulate_calibration_recording.py)
-- 拟合脚本：[scripts/calibrate_magnetometer.py](file:///Users/bytedance/coding/fangkong_adc/scripts/calibrate_magnetometer.py)
-- 离线分析：[scripts/analyze_recording.py](file:///Users/bytedance/coding/fangkong_adc/scripts/analyze_recording.py)
-- 标定核心 API：[core/calibration.py](file:///Users/bytedance/coding/fangkong_adc/core/calibration.py)
-- 录制器契约：[core/recorder.py](file:///Users/bytedance/coding/fangkong_adc/core/recorder.py)
-- 上位机入口按钮：[gui/control_panel.py](file:///Users/bytedance/coding/fangkong_adc/gui/control_panel.py#L64-L67)
+- 仿真脚本：[scripts/simulate_calibration_recording.py](file:///Users/auv_user/coding/fangkong_adc/scripts/simulate_calibration_recording.py)
+- 拟合脚本：[scripts/calibrate_magnetometer.py](file:///Users/auv_user/coding/fangkong_adc/scripts/calibrate_magnetometer.py)
+- 离线分析：[scripts/analyze_recording.py](file:///Users/auv_user/coding/fangkong_adc/scripts/analyze_recording.py)
+- 标定核心 API：[core/calibration.py](file:///Users/auv_user/coding/fangkong_adc/core/calibration.py)
+- 录制器契约：[core/recorder.py](file:///Users/auv_user/coding/fangkong_adc/core/recorder.py)
+- 上位机入口按钮：[gui/control_panel.py](file:///Users/auv_user/coding/fangkong_adc/gui/control_panel.py#L64-L67)

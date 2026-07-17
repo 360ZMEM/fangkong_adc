@@ -13,6 +13,14 @@ from __future__ import annotations
 
 # --- 配置 ---
 from config.config_manager import load_config, load_merged_config, save_config, validate_config
+from config.runtime_paths import (
+    DEFAULT_CALIBRATION_PROFILE,
+    DEFAULT_DEVICE_HOST,
+    DEFAULT_DEVICE_PORT,
+    project_root,
+    relativize_to_project,
+    resolve_repo_path,
+)
 from config.settings import (
     AppConfig,
     DeviceConfig,
@@ -34,6 +42,11 @@ from network.reconnect_state import ConnectionState
 # --- DSP 算法 (可独立调用) ---
 from core.dsp import compute_fft
 from core.lockin import compute_lockin
+from core.calibration import (
+    MagnetometerCalibration,
+    apply_calibration,
+    voltage_to_magnetic_field,
+)
 
 # --- 协议工具 (底层) ---
 from protocol.adc_decoder import (
@@ -85,6 +98,12 @@ __all__ = [
     "load_merged_config",
     "save_config",
     "validate_config",
+    "project_root",
+    "resolve_repo_path",
+    "relativize_to_project",
+    "DEFAULT_DEVICE_HOST",
+    "DEFAULT_DEVICE_PORT",
+    "DEFAULT_CALIBRATION_PROFILE",
     "AppConfig",
     "NetworkConfig",
     "DeviceConfig",
@@ -104,6 +123,9 @@ __all__ = [
     # DSP
     "compute_fft",
     "compute_lockin",
+    "MagnetometerCalibration",
+    "apply_calibration",
+    "voltage_to_magnetic_field",
     # 协议
     "MAGIC",
     "HEADER_SIZE",

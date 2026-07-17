@@ -5,6 +5,7 @@ import threading
 import time
 
 from config.config_manager import save_config
+from config.runtime_paths import relativize_to_project, resolve_repo_path
 from config.settings import AppConfig
 from .calibration import MagnetometerCalibration, calibration_summary
 from network.network_worker import NetworkWorker, NetworkWorkerStats
@@ -52,12 +53,16 @@ class AcquisitionController:
         self._parser_for_sync = SlidingByteBuffer()
         self._last_rate_sample_time = time.monotonic()
         self._last_rate_bytes = 0
-        self._user_config_path = "config/user_config.yaml"
+        self._user_config_path = resolve_repo_path("config/user_config.yaml")
         self.recorder = Recorder(output_dir="raw_data")
         self.calibration_profile: MagnetometerCalibration | None = None
         if self.config.calibration.profile_path:
             try:
-                self.calibration_profile = MagnetometerCalibration.load(self.config.calibration.profile_path)
+                resolved_profile = resolve_repo_path(self.config.calibration.profile_path)
+                if resolved_profile is None:
+                    raise FileNotFoundError("calibration.profile_path 为空")
+                self.calibration_profile = MagnetometerCalibration.load(resolved_profile)
+                self.config.calibration.profile_path = relativize_to_project(resolved_profile)
             except Exception as exc:
                 self.config.calibration.enabled = False
                 self.storage.append_event(f"标定文件加载失败: {exc}")
@@ -222,9 +227,12 @@ class AcquisitionController:
 
     def load_calibration_profile(self, path: str) -> None:
         try:
-            profile = MagnetometerCalibration.load(path)
+            resolved_path = resolve_repo_path(path)
+            if resolved_path is None:
+                raise FileNotFoundError("未提供有效标定文件路径")
+            profile = MagnetometerCalibration.load(resolved_path)
             self.calibration_profile = profile
-            self.config.calibration.profile_path = path
+            self.config.calibration.profile_path = relativize_to_project(resolved_path)
             self.config.calibration.enabled = True
             self.set_state(self.state, calibration_summary(profile, True))
             self.save_user_config()
@@ -245,6 +253,8 @@ class AcquisitionController:
         self.stop_acquisition()
 
     def save_user_config(self) -> None:
+        if self._user_config_path is None:
+            raise RuntimeError("user_config.yaml 路径解析失败")
         save_config(self.config, self._user_config_path)
 
     def load_user_config(self) -> None:

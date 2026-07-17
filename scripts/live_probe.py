@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import argparse
 import time
+from pathlib import Path
 
 from network.tcp_client import TcpClient, TcpEndpoint
 from protocol.adc_decoder import ActiveChannelDecoder, decode_24bit_samples
@@ -12,12 +14,43 @@ from protocol.frames import (
     parse_header,
 )
 from protocol.stream_parser import SlidingByteBuffer
+from config.config_manager import load_merged_config
+from config.runtime_paths import DEFAULT_DEVICE_HOST, DEFAULT_DEVICE_PORT
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="SK2301 真机流探测脚本")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/default_config.yaml",
+        help="默认配置文件路径",
+    )
+    parser.add_argument(
+        "--user-config",
+        type=str,
+        default="config/user_config.yaml",
+        help="用户配置文件路径（覆盖默认值）",
+    )
+    parser.add_argument("--host", type=str, default="", help="临时覆盖设备 IP")
+    parser.add_argument("--port", type=int, default=0, help="临时覆盖设备端口")
+    return parser.parse_args()
 
 
 def main() -> None:
-    client = TcpClient(TcpEndpoint("192.168.1.198", 1600), 3.0, 1.0)
+    args = parse_args()
+    root = Path(__file__).resolve().parent.parent
+    config = load_merged_config(root / args.config, root / args.user_config)
+    host = args.host or config.network.host or DEFAULT_DEVICE_HOST
+    port = int(args.port or config.network.port or DEFAULT_DEVICE_PORT)
+    client = TcpClient(
+        TcpEndpoint(host, port),
+        config.network.connect_timeout_sec,
+        config.network.recv_timeout_sec,
+    )
     parser = SlidingByteBuffer()
-    aligned_decoder = ActiveChannelDecoder([0, 1, 2])
+    active_channels = list(config.device.active_channels)
+    aligned_decoder = ActiveChannelDecoder(active_channels)
 
     def reqresp(req: bytes, expect_reg: int, timeout: float = 2.0) -> bytes:
         client.send_all(req)
@@ -35,20 +68,23 @@ def main() -> None:
         raise RuntimeError(f"timeout reg={expect_reg}")
 
     client.connect()
-    print("connected")
+    print(f"connected host={host} port={port} active_channels={active_channels}")
     for reg in [REG_INIT_STATUS, REG_AD_RANGE]:
         packet = reqresp(build_read_registers(reg, 1), reg)
         print("read_reg", reg, int.from_bytes(packet[16:18], "big"))
 
-    freq = 2000
-    values = [0x0000, (freq >> 16) & 0xFFFF, freq & 0xFFFF, 0x0007, 0x0000, 0x0002, 0x0001]
+    freq = int(config.device.sample_rate_hz)
+    channel_mask = 0
+    for channel in active_channels:
+        channel_mask |= 1 << channel
+    values = [0x0000, (freq >> 16) & 0xFFFF, freq & 0xFFFF, channel_mask, 0x0000, 0x0002, 0x0001]
     packet = reqresp(build_write_registers(REG_AD_MODE, values), REG_AD_MODE)
     print("config_ack", parse_header(packet))
     packet = reqresp(build_write_registers(REG_AD_START, [1]), REG_AD_START)
     print("start_ack", parse_header(packet))
 
     rows = []
-    request_bytes = 1404
+    request_bytes = int(config.device.read_bytes_per_request)
     for i in range(12):
         t0 = time.time()
         packet = reqresp(build_read_stream(19, request_bytes), 19, timeout=3.0)
@@ -57,7 +93,7 @@ def main() -> None:
         payload = packet[16:]
         ids = list(payload[3::4])
         unique_ids = sorted(set(ids))
-        decoded16 = decode_24bit_samples(payload, active_channels=[0, 1, 2], total_channels=16)
+        decoded16 = decode_24bit_samples(payload, active_channels=active_channels, total_channels=16)
         decoded3 = aligned_decoder.decode(payload)
         row = {
             "iter": i,

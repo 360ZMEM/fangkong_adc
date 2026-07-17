@@ -8,4 +8,6 @@ __pycache__/
 .venv/
 venv/
 参考文档。/
-calibration_profiles/
+calibration_profiles/*
+!calibration_profiles/
+!calibration_profiles/20260705T144937_magnetometer_9param.json

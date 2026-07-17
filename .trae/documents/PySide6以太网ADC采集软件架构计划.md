@@ -14,7 +14,7 @@
 
 ## Current State Analysis
 
-当前仓库路径：`/Users/bytedance/coding/fangkong_adc`
+当前仓库路径：`/Users/auv_user/coding/fangkong_adc`
 
 当前仓库没有应用代码，只有参考文档：
 
@@ -51,7 +51,7 @@
 计划新增如下工程结构：
 
 ```text
-/Users/bytedance/coding/fangkong_adc/
+/Users/auv_user/coding/fangkong_adc/
 ├── README.md
 ├── requirements.txt
 ├── main.py

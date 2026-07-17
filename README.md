@@ -44,6 +44,10 @@
 
 - `192.168.1.198:1600`
 
+当前默认九参数标定：
+
+- `calibration_profiles/20260705T144937_magnetometer_9param.json`
+
 ## 3. 仓库结构
 
 ```text
@@ -299,7 +303,7 @@ python3 -m pip install -r requirements.txt
 
 依赖清单见：
 
-- [requirements.txt](file:///Users/bytedance/coding/fangkong_adc/requirements.txt)
+- [requirements.txt](file:///Users/auv_user/coding/fangkong_adc/requirements.txt)
 
 ## 9. 常用运行命令
 
@@ -317,10 +321,12 @@ python3 -m pytest tests
 
 ### 9.3 真机探测脚本
 
-该脚本会直连 `192.168.1.198:1600`，读取寄存器并探测真实流数据特征：
+该脚本默认读取 `config/default_config.yaml + config/user_config.yaml` 中的地址，
+也可以通过命令行临时覆盖 `--host/--port`：
 
 ```bash
 PYTHONPATH=. python3 scripts/live_probe.py
+PYTHONPATH=. python3 scripts/live_probe.py --host 192.168.1.198 --port 1600
 ```
 
 ### 9.4 只安装依赖
@@ -339,7 +345,7 @@ python3 -m pytest tests
 
 如需进一步使用本地模拟设备，可参考：
 
-- [mock_sk2301_server.py](file:///Users/bytedance/coding/fangkong_adc/network/mock_sk2301_server.py)
+- [mock_sk2301_server.py](file:///Users/auv_user/coding/fangkong_adc/network/mock_sk2301_server.py)
 
 ## 10. GUI 操作流程
 
@@ -384,19 +390,25 @@ runtime:
 1. `config/default_config.yaml`
 2. `config/user_config.yaml`，如果存在则覆盖默认配置
 
+其中：
+
+- 默认设备地址仍保持 `192.168.1.198`
+- 默认会自动加载 `calibration_profiles/20260705T144937_magnetometer_9param.json`
+- 相对路径按本 submodule 根目录解析，不依赖 GUI 当前工作目录
+
 保存配置时由 GUI “保存配置”按钮写入：
 
 - `config/user_config.yaml`
 
 配置加载入口见：
 
-- [config_manager.py](file:///Users/bytedance/coding/fangkong_adc/config/config_manager.py)
+- [config_manager.py](file:///Users/auv_user/coding/fangkong_adc/config/config_manager.py)
 
 ## 12. 默认配置说明
 
 当前默认配置文件：
 
-- [default_config.yaml](file:///Users/bytedance/coding/fangkong_adc/config/default_config.yaml)
+- [default_config.yaml](file:///Users/auv_user/coding/fangkong_adc/config/default_config.yaml)
 
 关键字段如下：
 
@@ -404,6 +416,10 @@ runtime:
 network:
   host: "192.168.1.198"
   port: 1600
+
+calibration:
+  enabled: true
+  profile_path: "calibration_profiles/20260705T144937_magnetometer_9param.json"
 
 device:
   sample_rate_hz: 2000
@@ -577,8 +593,8 @@ storage:
 
 仓库内已经整理了与本项目强相关的文档：
 
-- [FKPro协议示例转写与校正.md](file:///Users/bytedance/coding/fangkong_adc/参考文档/FKPro协议示例转写与校正.md)
-- [SK2301与FKPro技术契约总结.md](file:///Users/bytedance/coding/fangkong_adc/参考文档/SK2301与FKPro技术契约总结.md)
+- [FKPro协议示例转写与校正.md](file:///Users/auv_user/coding/fangkong_adc/参考文档/FKPro协议示例转写与校正.md)
+- [SK2301与FKPro技术契约总结.md](file:///Users/auv_user/coding/fangkong_adc/参考文档/SK2301与FKPro技术契约总结.md)
 - `参考文档/FKPro通讯协议及编程说明书_V1.2.pdf`
 - `参考文档/SK2301一体化信号采集控制模块产品说明书_V2.0.pdf`
 

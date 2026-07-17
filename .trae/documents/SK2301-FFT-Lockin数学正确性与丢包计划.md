@@ -20,15 +20,15 @@
 
 ### 当前已满足的部分
 
-- 当前 `FFT` 与 `Lock-in` 的实现本身使用 `np.arange(n) / sample_rate_hz` 构造频率/参考波，代码位于 [dsp.py](file:///Users/bytedance/coding/fangkong_adc/core/dsp.py) 和 [lockin.py](file:///Users/bytedance/coding/fangkong_adc/core/lockin.py)。
-- 当前波形绘制也使用“样本点数 / sample_rate_hz”构造 X 轴，而不是直接拿 `time.time()` 做点间隔，代码位于 [plot_widgets.py](file:///Users/bytedance/coding/fangkong_adc/gui/plot_widgets.py)。
-- 当前存在滑动缓冲和环形缓存基础设施：[stream_parser.py](file:///Users/bytedance/coding/fangkong_adc/protocol/stream_parser.py)、[ring_buffer.py](file:///Users/bytedance/coding/fangkong_adc/core/ring_buffer.py)。
+- 当前 `FFT` 与 `Lock-in` 的实现本身使用 `np.arange(n) / sample_rate_hz` 构造频率/参考波，代码位于 [dsp.py](file:///Users/auv_user/coding/fangkong_adc/core/dsp.py) 和 [lockin.py](file:///Users/auv_user/coding/fangkong_adc/core/lockin.py)。
+- 当前波形绘制也使用“样本点数 / sample_rate_hz”构造 X 轴，而不是直接拿 `time.time()` 做点间隔，代码位于 [plot_widgets.py](file:///Users/auv_user/coding/fangkong_adc/gui/plot_widgets.py)。
+- 当前存在滑动缓冲和环形缓存基础设施：[stream_parser.py](file:///Users/auv_user/coding/fangkong_adc/protocol/stream_parser.py)、[ring_buffer.py](file:///Users/auv_user/coding/fangkong_adc/core/ring_buffer.py)。
 
 ### 当前不满足用户要求的部分
 
 #### 1. 仍然存在“基于本地时间反推有效采样率”的路径
 
-当前 [pipeline.py](file:///Users/bytedance/coding/fangkong_adc/core/pipeline.py) 中：
+当前 [pipeline.py](file:///Users/auv_user/coding/fangkong_adc/core/pipeline.py) 中：
 
 - 使用 `time.monotonic()` 统计单位时间内解码样本数；
 - 通过 `_effective_sample_rate_hz` 动态更新 `snapshot.sample_rate_hz`；
@@ -38,7 +38,7 @@
 
 #### 2. DSP 不是“固定窗口 + 固定步长触发”
 
-当前 [pipeline.py](file:///Users/bytedance/coding/fangkong_adc/core/pipeline.py) 中：
+当前 [pipeline.py](file:///Users/auv_user/coding/fangkong_adc/core/pipeline.py) 中：
 
 - 每来一批数据就调用 `_publish_snapshot()`；
 - `waveform` / `dsp_window` 使用 `latest(min(size, ...))` 现取；
@@ -48,12 +48,12 @@
 
 #### 3. 当前协议解析器没有 `pack_num` 能力
 
-当前 [constants.py](file:///Users/bytedance/coding/fangkong_adc/protocol/constants.py)、[frames.py](file:///Users/bytedance/coding/fangkong_adc/protocol/frames.py)、[stream_parser.py](file:///Users/bytedance/coding/fangkong_adc/protocol/stream_parser.py) 只支持当前项目使用的 `16` 字节 FkPro 主动读应答头。
+当前 [constants.py](file:///Users/auv_user/coding/fangkong_adc/protocol/constants.py)、[frames.py](file:///Users/auv_user/coding/fangkong_adc/protocol/frames.py)、[stream_parser.py](file:///Users/auv_user/coding/fangkong_adc/protocol/stream_parser.py) 只支持当前项目使用的 `16` 字节 FkPro 主动读应答头。
 
 根据文档：
 
 - 主动读寄存器 `19` 的读帧/应答头是当前实现的 `16` 字节寄存器风格。
-- `pack_num` 出现在自动上传波形数据包的 `52` 字节包头中，见 [SK2301与FKPro技术契约总结.md](file:///Users/bytedance/coding/fangkong_adc/参考文档/SK2301与FKPro技术契约总结.md) 和 `MinerU_markdown_FKPro通讯协议及编程说明书...md`。
+- `pack_num` 出现在自动上传波形数据包的 `52` 字节包头中，见 [SK2301与FKPro技术契约总结.md](file:///Users/auv_user/coding/fangkong_adc/参考文档/SK2301与FKPro技术契约总结.md) 和 `MinerU_markdown_FKPro通讯协议及编程说明书...md`。
 
 因此：
 
@@ -62,7 +62,7 @@
 
 #### 4. 当前 README 中的“有效采样率自适应收敛”描述将与本次目标冲突
 
-当前 [README.md](file:///Users/bytedance/coding/fangkong_adc/README.md) 已记录了“使用本地时间估计有效采样率以修复时间漂移”的结论。执行本计划后，这部分需要改写为：
+当前 [README.md](file:///Users/auv_user/coding/fangkong_adc/README.md) 已记录了“使用本地时间估计有效采样率以修复时间漂移”的结论。执行本计划后，这部分需要改写为：
 
 - 数学主链路只信任硬件采样率；
 - 本地时间只能做诊断，不参与算法时间基准。
@@ -106,9 +106,9 @@
 
 #### 变更文件
 
-- [config/settings.py](file:///Users/bytedance/coding/fangkong_adc/config/settings.py)
-- [config/default_config.yaml](file:///Users/bytedance/coding/fangkong_adc/config/default_config.yaml)
-- [core/models.py](file:///Users/bytedance/coding/fangkong_adc/core/models.py)
+- [config/settings.py](file:///Users/auv_user/coding/fangkong_adc/config/settings.py)
+- [config/default_config.yaml](file:///Users/auv_user/coding/fangkong_adc/config/default_config.yaml)
+- [core/models.py](file:///Users/auv_user/coding/fangkong_adc/core/models.py)
 
 #### 计划内容
 
@@ -135,10 +135,10 @@
 
 #### 变更文件
 
-- [core/ring_buffer.py](file:///Users/bytedance/coding/fangkong_adc/core/ring_buffer.py)
-- [core/pipeline.py](file:///Users/bytedance/coding/fangkong_adc/core/pipeline.py)
-- [core/dsp.py](file:///Users/bytedance/coding/fangkong_adc/core/dsp.py)
-- [core/lockin.py](file:///Users/bytedance/coding/fangkong_adc/core/lockin.py)
+- [core/ring_buffer.py](file:///Users/auv_user/coding/fangkong_adc/core/ring_buffer.py)
+- [core/pipeline.py](file:///Users/auv_user/coding/fangkong_adc/core/pipeline.py)
+- [core/dsp.py](file:///Users/auv_user/coding/fangkong_adc/core/dsp.py)
+- [core/lockin.py](file:///Users/auv_user/coding/fangkong_adc/core/lockin.py)
 
 #### 计划内容
 
@@ -167,8 +167,8 @@ t = np.arange(window_size_samples) / Fs
 
 #### 变更文件
 
-- [gui/plot_widgets.py](file:///Users/bytedance/coding/fangkong_adc/gui/plot_widgets.py)
-- [gui/main_window.py](file:///Users/bytedance/coding/fangkong_adc/gui/main_window.py)
+- [gui/plot_widgets.py](file:///Users/auv_user/coding/fangkong_adc/gui/plot_widgets.py)
+- [gui/main_window.py](file:///Users/auv_user/coding/fangkong_adc/gui/main_window.py)
 
 #### 计划内容
 
@@ -195,14 +195,14 @@ x = np.arange(point_count) / Fs
 
 #### 变更文件
 
-- [core/acquisition_controller.py](file:///Users/bytedance/coding/fangkong_adc/core/acquisition_controller.py)
-- [protocol/adc_decoder.py](file:///Users/bytedance/coding/fangkong_adc/protocol/adc_decoder.py)
-- [core/pipeline.py](file:///Users/bytedance/coding/fangkong_adc/core/pipeline.py)
+- [core/acquisition_controller.py](file:///Users/auv_user/coding/fangkong_adc/core/acquisition_controller.py)
+- [protocol/adc_decoder.py](file:///Users/auv_user/coding/fangkong_adc/protocol/adc_decoder.py)
+- [core/pipeline.py](file:///Users/auv_user/coding/fangkong_adc/core/pipeline.py)
 
 #### 计划内容
 
 1. 保留当前“读寄存器 `19`”链路。
-2. 保留当前按激活通道重组的 [adc_decoder.py](file:///Users/bytedance/coding/fangkong_adc/protocol/adc_decoder.py) 能力。
+2. 保留当前按激活通道重组的 [adc_decoder.py](file:///Users/auv_user/coding/fangkong_adc/protocol/adc_decoder.py) 能力。
 3. 对主动读模式：
    - 时间基准严格固定为配置 `Fs`
    - 不再根据运行时吞吐去调整 `sample_rate_hz`
@@ -219,12 +219,12 @@ x = np.arange(point_count) / Fs
 
 #### 变更文件
 
-- [protocol/constants.py](file:///Users/bytedance/coding/fangkong_adc/protocol/constants.py)
-- [protocol/frames.py](file:///Users/bytedance/coding/fangkong_adc/protocol/frames.py)
-- [protocol/stream_parser.py](file:///Users/bytedance/coding/fangkong_adc/protocol/stream_parser.py)
+- [protocol/constants.py](file:///Users/auv_user/coding/fangkong_adc/protocol/constants.py)
+- [protocol/frames.py](file:///Users/auv_user/coding/fangkong_adc/protocol/frames.py)
+- [protocol/stream_parser.py](file:///Users/auv_user/coding/fangkong_adc/protocol/stream_parser.py)
 - 新增建议文件：`protocol/upload_frames.py` 或并入 `frames.py`
-- [core/pipeline.py](file:///Users/bytedance/coding/fangkong_adc/core/pipeline.py)
-- [core/acquisition_controller.py](file:///Users/bytedance/coding/fangkong_adc/core/acquisition_controller.py)
+- [core/pipeline.py](file:///Users/auv_user/coding/fangkong_adc/core/pipeline.py)
+- [core/acquisition_controller.py](file:///Users/auv_user/coding/fangkong_adc/core/acquisition_controller.py)
 
 #### 计划内容
 
@@ -258,9 +258,9 @@ x = np.arange(point_count) / Fs
 
 #### 变更文件
 
-- [README.md](file:///Users/bytedance/coding/fangkong_adc/README.md)
-- [tests/test_dsp_lockin.py](file:///Users/bytedance/coding/fangkong_adc/tests/test_dsp_lockin.py)
-- [tests/test_adc_decoder.py](file:///Users/bytedance/coding/fangkong_adc/tests/test_adc_decoder.py)
+- [README.md](file:///Users/auv_user/coding/fangkong_adc/README.md)
+- [tests/test_dsp_lockin.py](file:///Users/auv_user/coding/fangkong_adc/tests/test_dsp_lockin.py)
+- [tests/test_adc_decoder.py](file:///Users/auv_user/coding/fangkong_adc/tests/test_adc_decoder.py)
 - 新增建议文件：
   - `tests/test_pipeline_windowing.py`
   - `tests/test_packet_loss_fill.py`

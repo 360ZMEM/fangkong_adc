@@ -97,6 +97,13 @@ class AppConfig:
 | `recv_timeout_sec` | `float` | `1.0` | 接收超时（秒） |
 | `reconnect_interval_sec` | `float` | `2.0` | 自动重连间隔（秒） |
 
+### CalibrationConfig
+
+| 字段 | 类型 | 默认值 | 含义 |
+|------|------|--------|------|
+| `enabled` | `bool` | `True` | 是否默认启用九参数标定 |
+| `profile_path` | `str` | `"calibration_profiles/20260705T144937_magnetometer_9param.json"` | 默认九参数标定文件，相对路径按 submodule 根目录解析 |
+
 ### DeviceConfig
 
 | 字段 | 类型 | 默认值 | 含义 |

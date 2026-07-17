@@ -1,0 +1,61 @@
+{
+  "name": "magnetometer_9param",
+  "created_at": "2026-07-05T14:49:37",
+  "bias_ut": [
+    5.601259759992399,
+    -6.672653575139784,
+    2.2761016540446155
+  ],
+  "matrix": [
+    [
+      0.9670908732574969,
+      -0.0008847608878411947,
+      -0.010870053236424294
+    ],
+    [
+      -0.0008847608878411947,
+      0.9616064695816476,
+      -0.0011435663369625457
+    ],
+    [
+      -0.010870053236424294,
+      -0.0011435663369625457,
+      0.9628785898970162
+    ]
+  ],
+  "channels": [
+    0,
+    1,
+    2
+  ],
+  "sensitivity_mv_per_ut": [
+    20.02,
+    19.98,
+    19.96
+  ],
+  "target_magnitude_ut": 47.279113234168264,
+  "metrics": {
+    "mean_magnitude_ut": 47.27539913826602,
+    "rms_residual_ut": 0.42298240072933907,
+    "max_abs_residual_ut": 1.2946555042523542,
+    "relative_rms_percent": 0.8947198933048571,
+    "sample_count": 68796
+  },
+  "health": {
+    "score": 95.26336128034171,
+    "grade": "healthy",
+    "verdict": "健康度良好，可直接加载使用。",
+    "sample_count": 68796,
+    "sample_score": 100.0,
+    "coverage_ratio": 0.8350694444444444,
+    "coverage_score": 100.0,
+    "residual_percent": 0.8947198933048571,
+    "residual_score": 84.21120426780571,
+    "condition_number": 1.0234961066140924,
+    "condition_score": 100.0,
+    "issues": [],
+    "suggestions": []
+  },
+  "notes": "source_npz=raw_data/1783234131_428572.npz",
+  "version": 1
+}
