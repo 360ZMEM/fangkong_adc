@@ -17,7 +17,9 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 import sys
+import time
 from pathlib import Path
 
 import matplotlib
@@ -35,8 +37,22 @@ CALIBRATION_NAME = "magnetometer_9param"
 # 已知当地磁场模值 (μT)。未知时填 None，脚本会用采样数据自动估计尺度。
 TARGET_MAGNITUDE_UT = None
 
-# 抽点步长：数据量很大时可增大，例如 5 或 10，加快拟合。
-FIT_DECIMATION = 1
+# 拟合抽点步长：
+# - 0: 自动抽点，默认将拟合样本控制在 MAX_FIT_SAMPLES 左右（推荐）
+# - 1: 使用全量样本拟合（最慢）
+# - 5/10: 手动每 5/10 点取 1 点拟合
+FIT_DECIMATION = 0
+
+# 自动抽点时，最小二乘拟合最多使用约这么多点。
+# 4.6 万点 @ 2000Hz 会自动变成约 1.15 万点，通常可把 1 分钟级计算降到十几秒量级。
+MAX_FIT_SAMPLES = 12000
+
+# 健康度和最终 RMS 是否用全量样本重算。
+# 拟合可以抽点，但健康度必须尽量反映真实采集数据是否足够。
+VALIDATE_ON_FULL_DATA = True
+
+# 绘图最多使用多少点。图像只用于人工检查点云形状，没必要画满 4~10 万点。
+MAX_PLOT_SAMPLES = 8000
 
 # 输出图像目录（相对于标定 profile 所在目录）
 FIGURE_SUBDIR = "figures"
@@ -49,6 +65,7 @@ _project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_project_root))
 
 from core.calibration import (  # noqa: E402
+    compute_calibration_health,
     evaluate_calibration,
     fit_ellipsoid_calibration,
     profile_output_path,
@@ -126,6 +143,21 @@ def plot_clouds(raw: np.ndarray, corrected: np.ndarray, output_dir: Path) -> Non
     fig2.savefig(output_dir / "calibration_magnitude.pdf")
 
 
+def decimate_for_limit(data: np.ndarray, max_samples: int, configured_stride: int = 0) -> tuple[np.ndarray, int]:
+    """返回抽点后的视图和实际步长。
+
+    configured_stride > 0 时使用手动步长；否则根据 max_samples 自动计算。
+    """
+    n_samples = data.shape[0]
+    if n_samples <= 0:
+        return data, 1
+    if configured_stride > 0:
+        stride = max(1, int(configured_stride))
+    else:
+        stride = max(1, int(np.ceil(n_samples / max(1, int(max_samples)))))
+    return data[::stride], stride
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -134,16 +166,17 @@ def main() -> None:
     npz_path = resolve_npz_path(sys.argv[1])
     voltage, channels, sensitivity = load_npz(npz_path)
     magnetic = voltage_to_magnetic_field(voltage, sensitivity)
-    fit_data = magnetic[:: max(1, int(FIT_DECIMATION))]
+    fit_data, fit_stride = decimate_for_limit(magnetic, MAX_FIT_SAMPLES, FIT_DECIMATION)
 
     print(f"加载录制文件: {npz_path}")
-    print(f"样本数: {magnetic.shape[0]}, 拟合样本数: {fit_data.shape[0]}")
+    print(f"样本数: {magnetic.shape[0]}, 拟合样本数: {fit_data.shape[0]} (抽点步长={fit_stride})")
     print(f"通道: {channels}")
     print(f"灵敏度: {sensitivity} mV/μT")
 
     before = evaluate_calibration(fit_data)
     print(f"标定前 |B| RMS 残差: {before.rms_residual_ut:.4f} μT ({before.relative_rms_percent:.2f}%)")
 
+    t0 = time.perf_counter()
     profile = fit_ellipsoid_calibration(
         fit_data,
         channels=channels,
@@ -152,15 +185,30 @@ def main() -> None:
         target_magnitude_ut=TARGET_MAGNITUDE_UT,
         notes=f"source_npz={npz_path}",
     )
-    corrected = profile.apply(fit_data)
-    after = evaluate_calibration(corrected)
+    fit_elapsed = time.perf_counter() - t0
+
+    validation_data = magnetic if VALIDATE_ON_FULL_DATA else fit_data
+    corrected_validation = profile.apply(validation_data)
+    after = evaluate_calibration(corrected_validation)
+    profile.metrics = asdict(after)
+    profile.health = asdict(
+        compute_calibration_health(
+            corrected_validation,
+            np.asarray(profile.matrix, dtype=np.float64),
+            after,
+        )
+    )
 
     out_path = profile_output_path(profile.name, profile.created_at)
     profile.save(out_path)
     figure_dir = out_path.parent / FIGURE_SUBDIR
-    plot_clouds(fit_data, corrected, figure_dir)
+    plot_data, plot_stride = decimate_for_limit(validation_data, MAX_PLOT_SAMPLES, 0)
+    plot_clouds(plot_data, profile.apply(plot_data), figure_dir)
 
-    print(f"标定后 |B| RMS 残差: {after.rms_residual_ut:.4f} μT ({after.relative_rms_percent:.2f}%)")
+    validation_scope = "全量样本" if VALIDATE_ON_FULL_DATA else "拟合样本"
+    print(f"拟合耗时: {fit_elapsed:.2f} s")
+    print(f"标定后 |B| RMS 残差: {after.rms_residual_ut:.4f} μT ({after.relative_rms_percent:.2f}%, {validation_scope})")
+    print(f"绘图样本数: {plot_data.shape[0]} (抽点步长={plot_stride})")
     print(f"标定文件已保存: {out_path}")
     print(f"验证图已保存: {figure_dir}")
 
