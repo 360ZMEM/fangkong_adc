@@ -1,0 +1,14 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3384449f637a020123bad9e9360be1f6375fc03d",
+  "prompts": {},
+  "humans": {
+    "h_8d17559c6ffd9a": {
+      "author": "360ZMEM <xgw24@mails.tsinghua.edu.cn>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
